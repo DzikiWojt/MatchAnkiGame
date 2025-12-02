@@ -137,6 +137,33 @@ class ExamCreatorTab(QWidget):
         self.setLayout(layout)
         self.load_decks()
 
+    def config_deduction(self):
+        # Set of probable audio field names (in lowercase for fast lookup)
+        PROBABLE_AUDIO_FIELDS = {"audio", "sound", "pronunciation", "music"}
+
+        # --- Audio Field Deduction (Case-Insensitive) ---
+        # Iterate over all items currently in the QComboBox to find probably audio field
+        for index in range(self.audio_field_selector.count()):
+            field_name = self.audio_field_selector.itemText(index)
+
+            # Check if the lowercase version of the field name matches any probable name
+            if field_name.lower() in PROBABLE_AUDIO_FIELDS:
+                # Found a match! Set the index using the current safe index and return
+                self.audio_field_selector.setCurrentIndex(index)
+                break  # Break the loop after setting the first match
+
+        # --- Vocab and Meaning Field Deduction (Positional) ---
+        # Get the number of available fields (all selectors have the same count at this point)
+        field_count = self.vocab_field_selector.count()
+
+        # Set Vocab field to the first available field (Index 0)
+        if field_count > 0:     # Check if at least one field exists
+            self.vocab_field_selector.setCurrentIndex(0)
+
+        # Set Meaning field to the second available field (Index 1)
+        if field_count > 1:     # Check if at least two fields exist
+            self.meaning_field_selector.setCurrentIndex(1)
+
     def _update_font_size_label(self, value: int):
         self.font_size_value_label.setText(f"{value}pt")
 
@@ -171,6 +198,7 @@ class ExamCreatorTab(QWidget):
             self.vocab_field_selector.addItems(fields)
             self.meaning_field_selector.addItems(fields)
             self.audio_field_selector.addItems(fields)
+            self.config_deduction()
 
     def start_exam(self):
         deck_name = self.deck_selector.currentText()
