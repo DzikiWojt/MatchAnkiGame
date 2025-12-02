@@ -7,12 +7,16 @@ from PyQt6.QtGui import QFont, QColor
 import random
 import time
 from .animated_button import AnimatedButton
+from collections.abc import Sequence
 from aqt import mw, AnkiQt
 from aqt.utils import showWarning
 from aqt.operations import CollectionOp
 from anki.collection import OpChanges
-from anki.consts import BUTTON_THREE
 from anki.consts import QUEUE_TYPE_REV  # 2 == Review
+from anki.cards import CardId
+from anki.scheduler.v3 import CardAnswer
+
+from . import anki_media
 
 
 class MatchingExam(QWidget):
@@ -123,7 +127,6 @@ class MatchingExam(QWidget):
             }
         """)
 
-
         self.layout.addLayout(button_layout)
         self.load_page()
 
@@ -178,9 +181,9 @@ class MatchingExam(QWidget):
         tiles_number = self.page_size * 2
         tiles = random.sample(range(0, tiles_number), tiles_number)
 
-        self.correct_pairs = {v: (m, cid) for v, m, cid in self.page_data}
-        vocabs = [v for v, m, cid in self.page_data]
-        meanings = [m for v, m, cid in self.page_data]
+        self.correct_pairs = {v: (m, audio, cid) for v, m, audio, cid in self.page_data}
+        vocabs = [v for v, m, audio, cid in self.page_data]
+        meanings = [m for v, m, audio, cid in self.page_data]
         random.shuffle(vocabs)
         random.shuffle(meanings)
 
@@ -247,6 +250,19 @@ class MatchingExam(QWidget):
             if child.widget():
                 child.widget().deleteLater()
 
+    def next_page(self):
+        self.current_page += 1
+        self.load_page()
+
+    def update_summary(self):
+        total = self.correct_total + self.wrong_total
+        accuracy = round((self.correct_total / total) * 100, 2) if total > 0 else 0
+
+        self.summary_pairs.setText(f"⏰ Tries: {total}")
+        self.summary_correct.setText(f"✅ Correct: {self.correct_total}")
+        self.summary_wrong.setText(f"❌ Wrong: {self.wrong_total}")
+        self.summary_accuracy.setText(f"🎯 Accuracy: {accuracy}%")
+
     def select_vocab(self, vocab):
         #if self.selected_vocab == vocab:
         if self.selected_vocab != None and self.vocab_buttons[vocab].isChecked():
@@ -287,7 +303,7 @@ class MatchingExam(QWidget):
     def check_match(self):
         if self.selected_vocab and self.selected_meaning:
             # correct_meaning has meaning and cid
-            correct_meaning, card_id = self.correct_pairs.get(self.selected_vocab)
+            correct_meaning, audio_content, card_id = self.correct_pairs.get(self.selected_vocab)
             #correct_meaning = self.correct_pairs.get(self.selected_vocab)
             if correct_meaning == self.selected_meaning:
                 self.vocab_buttons[self.selected_vocab].setStyleSheet("background-color: lightgreen;")
@@ -305,6 +321,9 @@ class MatchingExam(QWidget):
                 self.meaning_buttons[self.selected_meaning].setChecked(False)   # Unselect Button
 
                 self.update_summary()
+
+                # play audio file if exist
+                anki_media.play_audio_from_card_field(audio_content)
 
             else:
                 self.selection_wrong(self.vocab_buttons[self.selected_vocab], self.meaning_buttons[self.selected_meaning])
@@ -326,6 +345,7 @@ class MatchingExam(QWidget):
         self.selected_meaning = None
 
         self.update_summary()
+
 
     # Update card progress (method should be upgraded !!)
     def _update_card_progress(self, card_id):
@@ -373,18 +393,4 @@ class MatchingExam(QWidget):
             raise e
 
         return OpChanges()
-
-
-    def next_page(self):
-        self.current_page += 1
-        self.load_page()
-
-    def update_summary(self):
-        total = self.correct_total + self.wrong_total
-        accuracy = round((self.correct_total / total) * 100, 2) if total > 0 else 0
-
-        self.summary_pairs.setText(f"⏰ Tries: {total}")
-        self.summary_correct.setText(f"✅ Correct: {self.correct_total}")
-        self.summary_wrong.setText(f"❌ Wrong: {self.wrong_total}")
-        self.summary_accuracy.setText(f"🎯 Accuracy: {accuracy}%")
-
+        

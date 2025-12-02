@@ -20,6 +20,7 @@ class ExamCreatorTab(QWidget):
         self.note_type_selector = QComboBox()
         self.vocab_field_selector = QComboBox()
         self.meaning_field_selector = QComboBox()
+        self.audio_field_selector = QComboBox()
         self.screen_x = QSpinBox()
         self.screen_x.setRange(600, 3840)
         self.screen_x.setSingleStep(20)
@@ -51,6 +52,8 @@ class ExamCreatorTab(QWidget):
         layout.addWidget(self.vocab_field_selector)
         layout.addWidget(QLabel("Select the field containing the Meaning:"))
         layout.addWidget(self.meaning_field_selector)
+        layout.addWidget(QLabel("Select the field containing the Audio:"))
+        layout.addWidget(self.audio_field_selector)
 
 
         # Font Size  |  Screen Size
@@ -160,18 +163,21 @@ class ExamCreatorTab(QWidget):
     def update_fields(self):
         self.vocab_field_selector.clear()
         self.meaning_field_selector.clear()
+        self.audio_field_selector.clear()
         ntid = self.note_type_selector.currentData()
         model = mw.col.models.get(ntid)
         if model:
             fields = [f["name"] for f in model["flds"]]
             self.vocab_field_selector.addItems(fields)
             self.meaning_field_selector.addItems(fields)
+            self.audio_field_selector.addItems(fields)
 
     def start_exam(self):
         deck_name = self.deck_selector.currentText()
         note_type_id = self.note_type_selector.currentData()
         vocab_field = self.vocab_field_selector.currentText()
         meaning_field = self.meaning_field_selector.currentText()
+        audio_field = self.audio_field_selector.currentText()
 
         # default validation
         if not deck_name or not note_type_id or not vocab_field or not meaning_field:
@@ -233,10 +239,11 @@ class ExamCreatorTab(QWidget):
             if note.mid == note_type_id:
                 vocab = note[vocab_field]
                 meaning = note[meaning_field]
+                audio = note[audio_field]
 
                 # Be sure vocab i meaning are not empty
                 if vocab and meaning:
-                    notes.append((vocab, meaning, cid))
+                    notes.append((vocab, meaning, audio, cid))
 
         # Validation if all cards has their pair
         if len(notes) < 1:
