@@ -3,6 +3,8 @@ from .main import launch_matching_config
 from aqt import mw
 from aqt.qt import QAction
 
+__version__ = "1.0.3"
+
 def on_load():
     action = QAction("Match Anki Game", mw)
     action.triggered.connect(launch_matching_config)

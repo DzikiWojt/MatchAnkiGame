@@ -374,6 +374,11 @@ class MatchingExam(QWidget):
             return OpChanges()
 
         TIME_ELAPSED_SECONDS = 5
+
+        # 1 - Button One    - Failure           / Again, reset interval
+        # 2 - Button Two    - Correct, Hard     / Short interval
+        # 3 - Button Three  - Correct, Neutral  / Standard interval
+        # 4 - Button Four   - Correct, Easy     / Long interval
         REVLOG_GOOD_CODE = 2
 
         try:
