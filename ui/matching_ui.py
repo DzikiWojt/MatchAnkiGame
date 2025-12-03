@@ -17,7 +17,7 @@ from anki.cards import CardId
 from anki.scheduler.v3 import CardAnswer
 
 from . import anki_media
-
+from ..grade_now import grade_now
 
 class MatchingExam(QWidget):
     def __init__(self, all_data, page_size=5, columns=3, anim="fade", animtime=0.5, update_stats=False, font_size=18):
@@ -347,50 +347,11 @@ class MatchingExam(QWidget):
         self.update_summary()
 
 
-    # Update card progress (method should be upgraded !!)
     def _update_card_progress(self, card_id):
         if not self.update_stats:
             return
 
-        CollectionOp(
-            parent=self,
-            op=lambda col: self._perform_card_update(card_id),
-        ).success(
-            lambda result: self._handle_update_success(result)
-        ).failure(
-            lambda error: self._handle_update_failure(error)
-        ).run_in_background()
-
-    def _handle_update_success(self, result):
-        mw.reset()
+        grade_now(parent=self, card_ids=[card_id], ease=2).failure(self._handle_update_failure).run_in_background()
 
     def _handle_update_failure(self, error):
-        from aqt.utils import showWarning
         showWarning(f"Failed to update card status: {error}")
-
-    def _perform_card_update(self, card_id):
-        card = mw.col.get_card(card_id)
-        if not card:
-            return OpChanges()
-
-        TIME_ELAPSED_SECONDS = 5
-        REVLOG_GOOD_CODE = 2
-
-        try:
-            # Manually setup card as Review (queue=2)
-            card.queue = QUEUE_TYPE_REV
-            mw.col.update_card(card)
-
-            # Refresh card object and setup time
-            card = mw.col.get_card(card_id)
-            card.timer_started = time.time() - TIME_ELAPSED_SECONDS
-
-            # Review card
-            mw.col.sched.answerCard(card, REVLOG_GOOD_CODE)
-
-        except Exception as e:
-            # In case of error (ex. when answerCard don't accept)
-            raise e
-
-        return OpChanges()
-        
