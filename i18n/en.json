@@ -1,0 +1,23 @@
+{
+    "window_title_game": "Match Anki Game",
+    "window_title_config": "Match Anki Game - Config",
+
+    "config_select_deck": "Select Deck (including subdecks):",
+    "config_select_note_type": "Select Note Type:",
+    "config_select_field_vocabulary": "Select the field containing the Word (Vocabulary):",
+    "config_select_field_meaning": "Select the field containing the Meaning:",
+    "config_select_field_audio": "Select the field containing the Audio:",
+    "config_font_size": "Font Size:",
+    "config_screen_size": "Window Size:",
+    "config_card_selection_mode": "Card Selection Mode:",
+    "config_card_selection_mode_1": "Use all cards (ignores status)",
+    "config_card_selection_mode_2": "Use all 'Ready' cards (new+due+learn)",
+    "config_card_selection_mode_3": "Use all 'Ready' cards within Daily Limit (scheduled pool)",
+    "config_disappearing_animation_type": "Disappearing Animation Type:",
+    "config_animation_time": "Animation Time:",
+    "config_number_of_cards_per_page": "Number of cards per page:",
+    "config_number_of_columns": "Number of columns:",
+
+    "game_title_on_top": "Match the words with their meanings",
+    "game_page": "Page {page} of {total_pages}"
+}

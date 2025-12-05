@@ -9,6 +9,8 @@ from .matching_ui import MatchingExam
 import random
 import anki.errors
 
+from ..translation import tr
+
 
 class ExamCreatorTab(QWidget):
     def __init__(self):
@@ -44,15 +46,15 @@ class ExamCreatorTab(QWidget):
 
         self.deck_selector.currentIndexChanged.connect(self.update_note_types)
         self.note_type_selector.currentIndexChanged.connect(self.update_fields)
-        layout.addWidget(QLabel("Select Deck (including subdecks):"))
+        layout.addWidget(QLabel(tr("config_select_deck")))
         layout.addWidget(self.deck_selector)
-        layout.addWidget(QLabel("Select Note Type:"))
+        layout.addWidget(QLabel(tr("config_select_note_type")))
         layout.addWidget(self.note_type_selector)
-        layout.addWidget(QLabel("Select the field containing the Word (Vocabulary):"))
+        layout.addWidget(QLabel(tr("config_select_field_vocabulary")))
         layout.addWidget(self.vocab_field_selector)
-        layout.addWidget(QLabel("Select the field containing the Meaning:"))
+        layout.addWidget(QLabel(tr("config_select_field_meaning")))
         layout.addWidget(self.meaning_field_selector)
-        layout.addWidget(QLabel("Select the field containing the Audio:"))
+        layout.addWidget(QLabel(tr("config_select_field_audio")))
         layout.addWidget(self.audio_field_selector)
 
 
@@ -75,14 +77,14 @@ class ExamCreatorTab(QWidget):
 
         self.font_size_slider.valueChanged.connect(self._update_font_size_label)
 
-        gridConfigFontScreen.addWidget(QLabel("Font Size:"), 0, 0)
+        gridConfigFontScreen.addWidget(QLabel(tr("config_font_size")), 0, 0)
         gridConfigFontScreen.addLayout(font_size_layout, 1, 0)
 
         screen_layout = QHBoxLayout()
         screen_layout.addWidget(self.screen_x)
         screen_layout.addWidget(self.screen_y)
 
-        gridConfigFontScreen.addWidget(QLabel("Screen Size:"), 0, 1)
+        gridConfigFontScreen.addWidget(QLabel(tr("config_screen_size")), 0, 1)
         gridConfigFontScreen.addLayout(screen_layout, 1, 1)
 
 
@@ -90,10 +92,15 @@ class ExamCreatorTab(QWidget):
         self.update_stats_checkbox = QCheckBox("")
         self.update_stats_checkbox.setChecked(False)
 
+        self.update_stats = QComboBox()
+        self.update_stats.addItem("Do not update", "no")
+        self.update_stats.addItem("Static grade", "static")
+        #self.update_stats.addItem()
+
         self.card_selection_mode = QComboBox()
-        self.card_selection_mode.addItem("Use all cards (ignores status)", "all")
-        self.card_selection_mode.addItem("Use all 'Ready' cards (is:due)", "ready_all")
-        self.card_selection_mode.addItem("Use cards within Daily Limit (scheduled pool)", "daily_limit")
+        self.card_selection_mode.addItem(tr("config_card_selection_mode_1"), "all")
+        self.card_selection_mode.addItem(tr("config_card_selection_mode_2"), "ready_all")
+        self.card_selection_mode.addItem(tr("config_card_selection_mode_3"), "daily_limit")
 
         gridConfigDeck = QGridLayout()
         layout.addLayout(gridConfigDeck)
@@ -101,7 +108,7 @@ class ExamCreatorTab(QWidget):
         gridConfigDeck.addWidget(QLabel("Update Anki progress for matched cards:"), 0, 0)
         gridConfigDeck.addWidget(self.update_stats_checkbox, 1, 0)
 
-        gridConfigDeck.addWidget(QLabel("Card Selection Mode:"), 0, 1)
+        gridConfigDeck.addWidget(QLabel(tr("config_card_selection_mode")), 0, 1)
         gridConfigDeck.addWidget(self.card_selection_mode, 1, 1)
 
 
@@ -109,10 +116,10 @@ class ExamCreatorTab(QWidget):
         gridConfigAnimation = QGridLayout()
         layout.addLayout(gridConfigAnimation)
 
-        gridConfigAnimation.addWidget(QLabel("Disappearing Animation Type"), 0, 0)
+        gridConfigAnimation.addWidget(QLabel(tr("config_disappearing_animation_type")), 0, 0)
         gridConfigAnimation.addWidget(self.disappearing_type, 1, 0)
 
-        gridConfigAnimation.addWidget(QLabel("Animation Time"), 0, 1)
+        gridConfigAnimation.addWidget(QLabel(tr("config_animation_time")), 0, 1)
         gridConfigAnimation.addWidget(self.disappearing_time, 1, 1)
 
         self.disappearing_type.addItem("fade")
@@ -121,9 +128,9 @@ class ExamCreatorTab(QWidget):
 
         gridConfig = QGridLayout()
         layout.addLayout(gridConfig)
-        gridConfig.addWidget(QLabel("Number of words per page:"), 0, 0)
+        gridConfig.addWidget(QLabel(tr("config_number_of_cards_per_page")), 0, 0)
         gridConfig.addWidget(self.word_count_box, 1, 0)
-        gridConfig.addWidget(QLabel("Number of columns:"), 0, 1)
+        gridConfig.addWidget(QLabel(tr("config_number_of_columns")), 0, 1)
         gridConfig.addWidget(self.word_columns, 1, 1)
 
         btn_layout = QHBoxLayout()
@@ -200,93 +207,163 @@ class ExamCreatorTab(QWidget):
             self.audio_field_selector.addItems(fields)
             self.config_deduction()
 
+    def get_cards_for_mode(self, deck_name: str, mode_index: int) -> list[int]:
+        # Base query limiting to the selected deck
+        # We use quotes around deck name to handle spaces safely
+        base_query = f'deck:"{deck_name}"'
+
+        status_query = ""
+
+        if mode_index == 0:
+            # Mode: All cards
+            # No status filter needed, fetches entire deck (including suspended).
+            pass
+
+        elif mode_index == 1:
+            # Mode: All ready cards (No limits)
+            # FIX: Previously 'is:due' missed 'is:new' cards.
+            # Now we explicitly ask for New, Due (Review), and Learn queues.
+            status_query = "(is:new OR is:due OR is:learn)"
+
+        elif mode_index == 2:
+            # Mode: Scheduled pool (Daily limits)
+            # Delegates logic to the new helper function to apply per-deck limits
+            # based on card type priority (Learn > Due > New).
+            return self._get_limited_scheduled_cards(deck_name)
+
+        # Combine deck query with status query
+        full_query = f"{base_query} {status_query}".strip()
+
+        # Execute search in Anki collection
+        return mw.col.find_cards(full_query)
+
+    def _get_limited_scheduled_cards(self, deck_name: str) -> list[int]:
+        base_query = f'deck:"{deck_name}"'
+        did = mw.col.decks.id_for_name(deck_name)
+
+        # 1. Get Daily Limits
+        conf = mw.col.decks.config_dict_for_deck_id(did)
+        new_limit = conf['new']['perDay']
+        review_limit = conf['rev']['perDay']
+
+        # 2. Fetch Cards for all three queues (Learn, Due, New)
+        # We need card objects to get their 'queue' status and 'due' date for sorting.
+        # Fetching all ready cards first.
+        all_ready_ids = mw.col.find_cards(f'{base_query} (is:new OR is:due OR is:learn)')
+
+        # Map card ID to the actual Card object
+        all_cards = [mw.col.get_card(cid) for cid in all_ready_ids]
+
+        # 3. Separate cards into priority groups
+        learn_cards = []
+        due_cards = []
+        new_cards = []
+
+        for card in all_cards:
+            if card.queue == 1:  # Learn queue (Anki consts: 1)
+                learn_cards.append(card)
+            elif card.queue == 2:  # Review/Due queue (Anki consts: 2)
+                due_cards.append(card)
+            elif card.queue == 0:  # New queue (Anki consts: 0)
+                new_cards.append(card)
+
+        # 4. Sort within groups (Priority: Oldest first)
+        # - Learn: Sort by oldest step (card.due)
+        learn_cards.sort(key=lambda c: c.due)
+        # - Due: Sort by oldest due date (card.due)
+        due_cards.sort(key=lambda c: c.due)
+        # - New: Sort by date added or card.id (to ensure a consistent order)
+        new_cards.sort(key=lambda c: c.id)
+
+        # 5. Apply Limits (New and Due)
+        # Learn cards are typically NOT limited by daily review limits.
+
+        # New cards limit
+        limited_new = [c.id for c in new_cards[:new_limit]]
+
+        # Due cards limit
+        limited_due = [c.id for c in due_cards[:review_limit]]
+
+        # 6. Combine and prioritize (Learn first, then Due, then New)
+        final_ids = (
+                [c.id for c in learn_cards] +
+                limited_due +
+                limited_new
+        )
+
+        # This list may still contain duplicates if a card technically meets
+        # multiple criteria (e.g., a card in learning that is also marked as 'due'
+        # by some internal logic). We use a set for final deduplication.
+        return list(set(final_ids))
+
     def start_exam(self):
         deck_name = self.deck_selector.currentText()
-        note_type_id = self.note_type_selector.currentData()
+        note_type_id_check = self.note_type_selector.currentText()
         vocab_field = self.vocab_field_selector.currentText()
         meaning_field = self.meaning_field_selector.currentText()
         audio_field = self.audio_field_selector.currentText()
 
         # default validation
-        if not deck_name or not note_type_id or not vocab_field or not meaning_field:
+        if not deck_name or not note_type_id_check or not vocab_field or not meaning_field:
             QMessageBox.warning(self, "Missing information", "Please select all fields.")
             return
 
-        # getting settings from user interface
-        update_stats = self.update_stats_checkbox.isChecked()
-        selection_mode = self.card_selection_mode.currentData() # 'all', 'ready_all', lub 'daily_limit'
-
-        deck_id = mw.col.decks.id(deck_name)
-        cids_pool = []
-        cids = []
-
-        if selection_mode == 'daily_limit':
-            cids_pool_all_decks = mw.col.sched.get_queued_cards(fetch_limit=1000000)
-
-            cids_final_daily = []
-
-            for queued_card_object in cids_pool_all_decks.cards:
-                # KEY: in object QueuedCard, ID card is accessible as attribute .id
-                cid = queued_card_object.card.id
-
-                card = mw.col.get_card(cid)
-
-                # Check whether card is inside chosen deck
-                if card and card.did == deck_id:
-                    cids_final_daily.append(cid)
-
-            cids = cids_final_daily
-
-        elif selection_mode == 'ready_all':
-            # Mode "is:due" (return all is:due - ignore the limit)
-            query = f'deck:"{deck_name}" is:due'
-            cids = mw.col.find_cards(query)
-
-        else:  # 'all'
-            # Mode "Use all cards" (return all, ignoring status)
-            query = f'deck:"{deck_name}"'
-            cids = mw.col.find_cards(query)
+        note_type_id = mw.col.models.by_name(note_type_id_check)['id']
 
 
-        notes = []
-        for cid in cids:
-            # Getting Note ID
-            nid = mw.col.db.scalar("select nid from cards where id = ?", cid)
+        # --- Card Filtering Integration ---
+        # Get selected card pool mode index (0: Scheduled, 1: Ready, 2: All)
+        mode_index = self.card_selection_mode.currentIndex()
 
-            # If there is any problem with Note ID, ignore this card
-            if not nid:
+        # Fetch card IDs using the new encapsulated function
+        card_ids = self.get_cards_for_mode(deck_name, mode_index)
+
+        if not card_ids:
+            QMessageBox.information(self, "No Cards Found", "No cards found for the selected criteria.")
+            return
+        # --- End of Filtering Integration ---
+
+         # Prepare data structure for the MatchingExam game
+        all_data = []
+
+        # NOTE: Using the newly fetched card_ids list
+        for cid in card_ids:
+            card = mw.col.get_card(cid)
+            note = card.note()
+
+            # Skip cards that do not match the selected Note Type
+            if note.mid != note_type_id:
                 continue
 
-            try:
-                note = mw.col.get_note(nid)
-            except anki.errors.DBError as e:
-                print(f"DB Error (Note ignored): Note ID {nid} is corrupted (DBError: {e}).")
-                continue    # go to next card
+            # Extract content from fields
+            vocab_content = note[vocab_field]
+            meaning_content = note[meaning_field]
 
-            # Checking if note has correct Note Type
-            if note.mid == note_type_id:
-                vocab = note[vocab_field]
-                meaning = note[meaning_field]
-                audio = note[audio_field]
+            # Use audio_field only if it was selected; otherwise, use empty string
+            audio_content = note[audio_field] if audio_field else ""
 
-                # Be sure vocab i meaning are not empty
-                if vocab and meaning:
-                    notes.append((vocab, meaning, audio, cid))
+            # Check if both required fields have content
+            if vocab_content and meaning_content:
+                # Store the data as a 4-element tuple: (vocab, meaning, audio, card_id)
+                all_data.append((vocab_content, meaning_content, audio_content, cid))
 
-        # Validation if all cards has their pair
-        if len(notes) < 1:
-            QMessageBox.information(self, "Not enough data", "No valid word-meaning pair found.")
+        if not all_data:
+            QMessageBox.warning(self, "Empty Fields",
+                                "No cards found with content in the selected Vocab and Meaning fields.")
             return
 
-        # Running Exam
-        random.shuffle(notes)
+        # 3. Shuffle data and run the game
+        random.shuffle(all_data)
+
+
         win = MatchingExam(
-            notes,
+            all_data=all_data,
             page_size=self.word_count_box.value(),
             columns=self.word_columns.value(),
             anim=self.disappearing_type.currentText(),
             animtime=self.disappearing_time.value(),
-            update_stats=update_stats,
+            ###update_stats=update_stats,
+            update_stats=self.update_stats_checkbox.isChecked(),
             font_size=self.font_size_slider.value())
 
         win.setMinimumSize(600, 500)

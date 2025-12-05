@@ -1,7 +1,23 @@
 Match Anki Game - Changelog
 
 
-## [1.0.3] - 
+## [1.0.5]
+### Upgrade 
+- Card selection mode "Use all 'Ready' cards within Daily Limit (scheduled pool)" is recoded. Currently use daily limit but choose cards only from selected deck.
+- Minor visual enhancement
+
+### Fix
+- Fix empty "Select Note Type" field in config making error
+
+### Added
+- Translation system based on <lang>.json files
+- Polish translation added (90% of all texts)
+
+## [1.0.4] - 2025.12.03
+### Upgrade
+- Update Anki progress on cards now in official way (Thanks to Abdo from Discord Anki. www.abdnh.net)
+
+## [1.0.3] - 2025.12.03
 ### Added
 - Create CHANGELOG.md
 - Create __version__ variable

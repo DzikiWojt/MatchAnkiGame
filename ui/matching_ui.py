@@ -18,11 +18,12 @@ from anki.scheduler.v3 import CardAnswer
 
 from . import anki_media
 from ..grade_now import grade_now
+from ..translation import tr
 
 class MatchingExam(QWidget):
     def __init__(self, all_data, page_size=5, columns=3, anim="fade", animtime=0.5, update_stats=False, font_size=18):
         super().__init__()
-        self.setWindowTitle("Match Anki Game")
+        self.setWindowTitle(tr("window_title_game"))
         self.all_data = all_data
         self.page_size = page_size
         self.columns = columns
@@ -44,7 +45,7 @@ class MatchingExam(QWidget):
         self.layout = QVBoxLayout(self)
 
 
-        title = QLabel("Match the words with their meanings")
+        title = QLabel(tr("game_title_on_top"))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         self.layout.addWidget(title)
@@ -162,7 +163,7 @@ class MatchingExam(QWidget):
 
     def load_page(self):
         total_pages = (len(self.all_data) + self.page_size - 1) // self.page_size
-        self.page_info.setText(f"Page {self.current_page + 1} of {total_pages}")
+        self.page_info.setText(tr("game_page", page=self.current_page+1, total_pages=total_pages))
         if hasattr(self, "timer"):
             self.timer.stop()
         self.start_timer()

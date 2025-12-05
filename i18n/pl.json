@@ -1,0 +1,24 @@
+{
+    "window_title_game": "Gra Parowanie Anki",
+    "window_title_config": "Gra Parowanie Anki - Konfiguracja",
+
+    "config_select_deck": "Wybierz talię (włączając pod-talie):",
+    "config_select_note_type": "Wybierz typ karty:",
+    "config_select_field_vocabulary": "Wybierz pole zawierające pytanie:",
+    "config_select_field_meaning": "Wybierz pole zawierające odpowiedź:",
+    "config_select_field_audio": "Wybierz pole zawierające dźwięk:",
+    "config_font_size": "Rozmiar czcionki:",
+    "config_screen_size": "Rozmiar okna:",
+    "config_card_selection_mode": "Tryb wyboru kart:",
+    "config_card_selection_mode_1": "Użyj wszystkich kart (ignoruj status)",
+    "config_card_selection_mode_2": "Użyj wszystkich 'Gotowych' kart (nowe+uczone+oczekujące)",
+    "config_card_selection_mode_3": "Użyj dziennego limitu 'Gotowych' kart (zaplanowana pula)",
+    "config_disappearing_animation_type": "Typ animacji znikania:",
+    "config_animation_time": "Czas animacji",
+    "config_number_of_cards_per_page": "Liczba kart na stronę:",
+    "config_number_of_columns": "Liczba kolumn:",
+
+    "game_title_on_top": "Sparuj pytanie i odpowiedź",
+    "game_page": "Strona {page} z {total_pages}"
+
+}
