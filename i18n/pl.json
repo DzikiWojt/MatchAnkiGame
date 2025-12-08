@@ -17,8 +17,18 @@
     "config_animation_time": "Czas animacji",
     "config_number_of_cards_per_page": "Liczba kart na stronę:",
     "config_number_of_columns": "Liczba kolumn:",
+    "config_timekeeping": "Pomiar czasu:",
+    "config_timekeeping_1": "Tylko w celach informacyjnych",
+    "config_timekeeping_2": "Limit czasu na stronę",
+    "config_timekeeping_3": "Limit czasu dla wszystkich kart",
 
     "game_title_on_top": "Sparuj pytanie i odpowiedź",
-    "game_page": "Strona {page} z {total_pages}"
+    "game_page": "Strona {page} z {total_pages}",
+    "game_timer_per_page": "Czas strony: {minutes:02}:{seconds:02}",
+    "game_timer_for_all_cards": "Całkowity czas: {minutes:02}:{seconds:02}",
 
+    "game_timer_per_page_tooltip": "Czas bieżącej strony<br><nobr>(tylko w celach informacyjnych)</nobr>",
+    "game_countdown_per_page_tooltip": "Limit czas bieżącej strony",
+    "game_timer_for_all_cards_tooltip": "Czas dla wszystkich kart<br><nobr>(tylko w celach informacyjnych)</nobr>",
+    "game_countdown_for_all_cards_tooltip": "Limit czasu dla wszystkich kart"
 }

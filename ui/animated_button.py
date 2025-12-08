@@ -9,6 +9,9 @@ class AnimatedButton(QPushButton):
     def __init__(self, text, animation_type='fade', animation_time=0.5, font_size=18):
         super().__init__("")
 
+        # Declaration of empty vars
+        self.color_anim: QVariantAnimation | None = None
+
         self.label = QLabel(text, self)
         self.label.setWordWrap(True)
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -197,7 +200,7 @@ class AnimatedButton(QPushButton):
 
         return qpushbutton_style + checked_style
 
-    def flash_color_overlay_two(self, color_name="red"):
+    def flash_color_overlay(self, color_name="red"):
         base_color = QColor(color_name)
 
         start_color = QColor(base_color)
@@ -236,11 +239,20 @@ class AnimatedButton(QPushButton):
     def force_finish_flash(self):
 
         # Stop Animation
-        if self.color_anim.state() == QVariantAnimation.State.Running:
+        if self.color_anim and self.color_anim.state() == QVariantAnimation.State.Running:
             self.color_anim.stop()
 
         # Clear CSS
         QTimer.singleShot(0, self.restore_default_style)
+
+    def force_disable_instant(self, color_name="red"):
+        # Stop Animation
+        if self.color_anim and self.color_anim.state() == QVariantAnimation.State.Running:
+            self.color_anim.stop()
+
+        self.setEnabled(False)
+
+        self.update_overlay_color(QColor(color_name))
 
     def update_overlay_color(self, color):
         r, g, b, a = color.red(), color.green(), color.blue(), color.alpha()

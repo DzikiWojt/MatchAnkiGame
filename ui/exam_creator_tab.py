@@ -1,15 +1,22 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton,
     QComboBox, QMessageBox, QHBoxLayout, QSpinBox, QGridLayout, QDoubleSpinBox,
-    QCheckBox, QSlider
+    QCheckBox, QSlider, QStackedWidget, QSpacerItem, QTimeEdit
 )
+from PyQt6.QtCore import QTime
 from aqt import mw
 from aqt.qt import Qt, QScreen, QApplication
 from .matching_ui import MatchingExam
 import random
 import anki.errors
 
+from ..enums import TimekeepingMode
 from ..translation import tr
+
+
+config_default_clockdown_per_page = QTime(0, 2, 0)          # 0h, 2m, 0s
+config_default_clockdown_for_all_cards = QTime(0, 10, 0)    # 0h, 10m, 0s
+
 
 
 class ExamCreatorTab(QWidget):
@@ -88,6 +95,41 @@ class ExamCreatorTab(QWidget):
         gridConfigFontScreen.addLayout(screen_layout, 1, 1)
 
 
+        # Timekeeping
+        self.timekeeping = QComboBox()
+        self.timekeeping.addItem(tr("config_timekeeping_1"))
+        self.timekeeping.addItem(tr("config_timekeeping_2"))
+        self.timekeeping.addItem(tr("config_timekeeping_3"))
+
+        self.timekeeping_mode: TimekeepingMode = TimekeepingMode(self.timekeeping.currentIndex())
+
+        self.timekeeping_stacked = QStackedWidget()
+        self.timekeeping.currentIndexChanged.connect(self.timekeeping_config_changed)
+
+        self.timekeeping_time_per_page = QTimeEdit()
+        self.timekeeping_time_per_page.setDisplayFormat("hh:mm:ss")
+        self.timekeeping_time_per_page.setTime(config_default_clockdown_per_page)
+        self.timekeeping_time_for_all_cards = QTimeEdit()
+        self.timekeeping_time_for_all_cards.setDisplayFormat("hh:mm:ss")
+        self.timekeeping_time_for_all_cards.setTime(config_default_clockdown_for_all_cards)
+
+
+        space_container_widget = QWidget()
+        space_container_widget.setFixedSize(100, 30)
+        space_container_widget.setAutoFillBackground(False)
+
+        self.timekeeping_stacked.addWidget(space_container_widget)
+        self.timekeeping_stacked.addWidget(self.timekeeping_time_per_page)
+        self.timekeeping_stacked.addWidget(self.timekeeping_time_for_all_cards)
+
+        gridConfigTimekeeping = QGridLayout()
+        layout.addLayout(gridConfigTimekeeping)
+
+        gridConfigTimekeeping.addWidget(QLabel(tr("config_timekeeping")), 0, 0)
+        gridConfigTimekeeping.addWidget(self.timekeeping, 1, 0)
+        gridConfigTimekeeping.addWidget(self.timekeeping_stacked, 1,1)
+
+
         # Update Anki progress  |  Card Selection mode
         self.update_stats_checkbox = QCheckBox("")
         self.update_stats_checkbox.setChecked(False)
@@ -143,6 +185,11 @@ class ExamCreatorTab(QWidget):
         layout.addLayout(btn_layout)
         self.setLayout(layout)
         self.load_decks()
+
+    def timekeeping_config_changed(self, index: int) -> None:
+        self.timekeeping_stacked.setCurrentIndex(index)
+        self.timekeeping_mode = TimekeepingMode(index)
+
 
     def config_deduction(self):
         # Set of probable audio field names (in lowercase for fast lookup)
@@ -310,6 +357,13 @@ class ExamCreatorTab(QWidget):
 
         note_type_id = mw.col.models.by_name(note_type_id_check)['id']
 
+        timekeeping_time = QTime()
+        match self.timekeeping_mode:
+            case TimekeepingMode.COUNTDOWN_PER_PAGE:
+                timekeeping_time = self.timekeeping_time_per_page.time()
+            case TimekeepingMode.COUNTDOWN_FOR_ALL_CARDS:
+                timekeeping_time = self.timekeeping_time_for_all_cards.time()
+
 
         # --- Card Filtering Integration ---
         # Get selected card pool mode index (0: Scheduled, 1: Ready, 2: All)
@@ -364,7 +418,9 @@ class ExamCreatorTab(QWidget):
             animtime=self.disappearing_time.value(),
             ###update_stats=update_stats,
             update_stats=self.update_stats_checkbox.isChecked(),
-            font_size=self.font_size_slider.value())
+            font_size=self.font_size_slider.value(),
+            timekeeping_mode=self.timekeeping_mode,
+            timekeeping_time=timekeeping_time)
 
         win.setMinimumSize(600, 500)
 

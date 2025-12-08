@@ -17,7 +17,18 @@
     "config_animation_time": "Animation Time:",
     "config_number_of_cards_per_page": "Number of cards per page:",
     "config_number_of_columns": "Number of columns:",
+    "config_timekeeping": "Timekeeping:",
+    "config_timekeeping_1": "Informational purposes only",
+    "config_timekeeping_2": "Time limit per page",
+    "config_timekeeping_3": "Time limit for all card",
 
     "game_title_on_top": "Match the words with their meanings",
-    "game_page": "Page {page} of {total_pages}"
+    "game_page": "Page {page} of {total_pages}",
+    "game_timer_per_page": "Page Time: {minutes:02}:{seconds:02}",
+    "game_timer_for_all_cards": "Total Time: {minutes:02}:{seconds:02}",
+
+    "game_timer_per_page_tooltip": "Timer per page<br><nobr>(informational only)</nobr>",
+    "game_countdown_per_page_tooltip": "Countdown per page",
+    "game_timer_for_all_cards_tooltip": "Timer for all cards<br><nobr>(informational only)</nobr>",
+    "game_countdown_for_all_cards_tooltip": "Countdown for all cards"
 }

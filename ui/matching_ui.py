@@ -1,27 +1,24 @@
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QPushButton, QLabel, QGridLayout, QSizePolicy, QHBoxLayout, QMessageBox, QFrame
+    QWidget, QVBoxLayout, QPushButton, QLabel, QGridLayout, QHBoxLayout, QMessageBox, QFrame
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTime
 from PyQt6.QtGui import QFont, QColor
 import random
-import time
 from .animated_button import AnimatedButton
-from collections.abc import Sequence
-from aqt import mw, AnkiQt
 from aqt.utils import showWarning
-from aqt.operations import CollectionOp
-from anki.collection import OpChanges
-from anki.consts import QUEUE_TYPE_REV  # 2 == Review
-from anki.cards import CardId
-from anki.scheduler.v3 import CardAnswer
+
 
 from . import anki_media
 from ..grade_now import grade_now
 from ..translation import tr
+from ..clockdown_manager import ClockdownManager
+from ..timer_manager import TimerManager
+from ..enums import TimekeepingMode
+
 
 class MatchingExam(QWidget):
-    def __init__(self, all_data, page_size=5, columns=3, anim="fade", animtime=0.5, update_stats=False, font_size=18):
+    def __init__(self, all_data, page_size=5, columns=3, anim="fade", animtime=0.5, update_stats=False, font_size=18, timekeeping_mode=TimekeepingMode.TIME_INFORMATIONAL, timekeeping_time=QTime()):
         super().__init__()
         self.setWindowTitle(tr("window_title_game"))
         self.all_data = all_data
@@ -31,6 +28,8 @@ class MatchingExam(QWidget):
         self.animtime = animtime
         self.update_stats = update_stats
         self.font_size = font_size
+        self.timekeeping_mode = timekeeping_mode
+        self.timekeeping_time = timekeeping_time
         self.current_page = 0
         self.correct_total = 0
         self.wrong_total = 0
@@ -57,9 +56,79 @@ class MatchingExam(QWidget):
         self.layout.addWidget(self.page_info)
 
         # Display Time
-        self.timer_label = QLabel("⏳ Time: 02:00")
-        self.timer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.timer_label)
+        self.font_size_clock_small : int = 12
+        self.font_size_clock_big : int = 15
+
+        self.timer_bar = QHBoxLayout()
+        # Clock Small (per page)
+        self.timer_per_page_icon = QLabel("⏳")
+        self.change_label_font_size(self.timer_per_page_icon, self.font_size_clock_small)
+        self.timer_per_page_label = QLabel(tr("game_timer_per_page"))
+        self.change_label_font_size(self.timer_per_page_label, self.font_size_clock_small)
+        # Clock Big (for all cards)
+        self.timer_for_all_cards_icon = QLabel("⏳")
+        self.change_label_font_size(self.timer_for_all_cards_icon, self.font_size_clock_big)
+        self.timer_for_all_cards_label = QLabel(tr("game_timer_for_all_cards"))
+        self.change_label_font_size(self.timer_for_all_cards_label, self.font_size_clock_big)
+
+        self.timer_bar.addStretch(1)
+        self.timer_bar.addWidget(self.timer_per_page_icon)
+        self.timer_bar.addWidget(self.timer_per_page_label)
+        self.timer_bar.addSpacing(120)
+        self.timer_bar.addWidget(self.timer_for_all_cards_icon)
+        self.timer_bar.addWidget(self.timer_for_all_cards_label)
+        self.timer_bar.addStretch(1)
+        self.layout.addLayout(self.timer_bar)
+
+        ICON_RED_DOWN_ARROW_HTML_BIG = f'<span style="color: red; font-size: {self.font_size_clock_big}px;">▼</span>'
+        ICON_RED_DOWN_ARROW_HTML_SMALL = f'<span style="color: red; font-size: {self.font_size_clock_small}px;">▼</span>'
+        icons_clock_red_down_arrow_html_text_big = f"⏳ {ICON_RED_DOWN_ARROW_HTML_BIG}"
+        icons_clock_red_down_arrow_html_text_small = f"⏳ {ICON_RED_DOWN_ARROW_HTML_SMALL}"
+        ICON_GREEN_UP_ARROW_HTML_BIG = f'<span style="color: green; font-size: {self.font_size_clock_big}px;">▲</span>'
+        ICON_GREEN_UP_ARROW_HTML_SMALL = f'<span style="color: green; font-size: {self.font_size_clock_small}px;">▲</span>'
+        icons_clock_green_up_arrow_html_text_big = f"⏳ {ICON_GREEN_UP_ARROW_HTML_BIG}"
+        icons_clock_green_up_arrow_html_text_small = f"⏳ {ICON_GREEN_UP_ARROW_HTML_SMALL}"
+
+        match self.timekeeping_mode:
+            case TimekeepingMode.COUNTDOWN_FOR_ALL_CARDS:
+                # Timer per page
+                self.timer_manager_per_page = TimerManager(self.timer_per_page_label)
+                self.timer_per_page_icon.setText(icons_clock_green_up_arrow_html_text_small)
+                self.timer_per_page_icon.setToolTip(tr("game_timer_per_page_tooltip"))
+                self.timer_per_page_label.setToolTip(tr("game_timer_per_page_tooltip"))
+                # Countdown for all cards
+                self.clockdown_manager_for_all_cards = ClockdownManager(self.timekeeping_time, self.timer_for_all_cards_label)
+                self.clockdown_manager_for_all_cards.timeout_finished.connect(self.clockdown_finish_for_all_cards)
+                self.clockdown_manager_for_all_cards.start_clockdown()
+                self.timer_for_all_cards_icon.setText(icons_clock_red_down_arrow_html_text_big)
+                self.timer_for_all_cards_icon.setToolTip(tr("game_countdown_for_all_cards_tooltip"))
+                self.timer_for_all_cards_label.setToolTip(tr("game_countdown_for_all_cards_tooltip"))
+            case TimekeepingMode.COUNTDOWN_PER_PAGE:
+                # Countdown per page
+                self.clockdown_manager_per_page = ClockdownManager(self.timekeeping_time, self.timer_per_page_label)
+                self.clockdown_manager_per_page.timeout_finished.connect(self.clockdown_finish_per_page)
+                self.timer_per_page_icon.setText(icons_clock_red_down_arrow_html_text_small)
+                self.timer_per_page_icon.setToolTip(tr("game_countdown_per_page_tooltip"))
+                self.timer_per_page_label.setToolTip(tr("game_countdown_per_page_tooltip"))
+                # Timer for all cards
+                self.timer_manager_for_all_cards = TimerManager(self.timer_for_all_cards_label)
+                self.timer_manager_for_all_cards.start_timer()
+                self.timer_for_all_cards_icon.setText(icons_clock_green_up_arrow_html_text_big)
+                self.timer_for_all_cards_icon.setToolTip(tr("game_timer_for_all_cards_tooltip"))
+                self.timer_for_all_cards_label.setToolTip(tr("game_timer_for_all_cards_tooltip"))
+            case TimekeepingMode.TIME_INFORMATIONAL:
+                # Timer per page
+                self.timer_manager_per_page = TimerManager(self.timer_per_page_label)
+                self.timer_per_page_icon.setText(icons_clock_green_up_arrow_html_text_small)
+                self.timer_per_page_icon.setToolTip(tr("game_timer_per_page_tooltip"))
+                self.timer_per_page_label.setToolTip(tr("game_timer_per_page_tooltip"))
+                # Timer for all cards
+                self.timer_manager_for_all_cards = TimerManager(self.timer_for_all_cards_label)
+                self.timer_manager_for_all_cards.start_timer()
+                self.timer_for_all_cards_icon.setText(icons_clock_green_up_arrow_html_text_big)
+                self.timer_for_all_cards_icon.setToolTip(tr("game_timer_for_all_cards_tooltip"))
+                self.timer_for_all_cards_label.setToolTip(tr("game_timer_for_all_cards_tooltip"))
+
 
         # Grid start
         self.grid = QGridLayout()
@@ -128,8 +197,15 @@ class MatchingExam(QWidget):
             }
         """)
 
+        self.total_pages : int = (len(self.all_data) + self.page_size - 1) // self.page_size
+
         self.layout.addLayout(button_layout)
         self.load_page()
+
+    def change_label_font_size(self, label, size):
+        current_font = label.font()
+        current_font.setPointSize(size)
+        label.setFont(current_font)
 
     # Create Vertical Separator
     def create_v_separator(self):
@@ -139,34 +215,50 @@ class MatchingExam(QWidget):
         separator.setStyleSheet("QFrame { background-color: #aaa; }")
         return separator
 
-    def start_timer(self):
-        self.time_remaining = 120  # 2 phút
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_timer)
-        self.timer.start(1000)
-        self.update_timer()
+    def clockdown_finish_per_page(self):
+        # Disable this page buttons
+        for btn in self.vocab_buttons.values():
+            btn.force_disable_instant("lightcoral")
+        for btn in self.meaning_buttons.values():
+            btn.force_disable_instant("lightcoral")
+        # Disable Timer for all cards, only if this is last page
+        if self.current_page+1 == self.total_pages:
+            self.timer_manager_for_all_cards.stop_timer()
 
-    def update_timer(self):
-        if self.time_remaining <= 0:
-            self.timer.stop()
-            self.status_label.setText("⏰ Time's up! You can't continue matching.")
-            for btn in self.vocab_buttons.values():
-                btn.setEnabled(False)
-            for btn in self.meaning_buttons.values():
-                btn.setEnabled(False)
-        else:
-            minutes = self.time_remaining // 60
-            seconds = self.time_remaining % 60
-            self.timer_label.setText(f"⏳ Time: {minutes:02}:{seconds:02}")
-            self.time_remaining -= 1
-
+    def clockdown_finish_for_all_cards(self):
+        # Disable this page buttons
+        for btn in self.vocab_buttons.values():
+            btn.force_disable_instant("lightcoral")
+        for btn in self.meaning_buttons.values():
+            btn.force_disable_instant("lightcoral")
+        # Disable "Next Page" button
+        self.next_button.setStyleSheet("""
+            QPushButton {
+                font-size: 16pt; 
+                padding: 10px 20px 10px 20px;
+                background: lightcoral; 
+            }
+        """)
+        self.next_button.setEnabled(False)
+        # Disable Timer per page
+        self.timer_manager_per_page.stop_timer()
 
     def load_page(self):
-        total_pages = (len(self.all_data) + self.page_size - 1) // self.page_size
-        self.page_info.setText(tr("game_page", page=self.current_page+1, total_pages=total_pages))
-        if hasattr(self, "timer"):
-            self.timer.stop()
-        self.start_timer()
+        #total_pages = (len(self.all_data) + self.page_size - 1) // self.page_size
+        self.page_info.setText(tr("game_page", page=self.current_page+1, total_pages=self.total_pages))
+
+        # Timers and Countdowners
+        match self.timekeeping_mode:
+            case TimekeepingMode.COUNTDOWN_FOR_ALL_CARDS:
+                # Timer per page
+                self.timer_manager_per_page.start_timer()
+            case TimekeepingMode.COUNTDOWN_PER_PAGE:
+                # Countdown per page
+                self.clockdown_manager_per_page.start_clockdown()
+            case TimekeepingMode.TIME_INFORMATIONAL:
+                # Timer per page
+                self.timer_manager_per_page.start_timer()
+
         self.clear_grid()
         self.selected_vocab = None
         self.selected_meaning = None
@@ -339,8 +431,8 @@ class MatchingExam(QWidget):
         btn1.setChecked(False)  # Unselect Button
         btn2.setChecked(False)  # Unselect Button
 
-        btn1.flash_color_overlay_two("lightcoral")
-        btn2.flash_color_overlay_two("lightcoral")
+        btn1.flash_color_overlay("lightcoral")
+        btn2.flash_color_overlay("lightcoral")
 
         self.selected_vocab = None
         self.selected_meaning = None

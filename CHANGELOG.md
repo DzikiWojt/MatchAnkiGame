@@ -1,7 +1,19 @@
 Match Anki Game - Changelog
 
 
-## [1.0.5]
+## [1.1.0] - 2025.12.08
+
+### Upgrade
+- Remove old countdown functionality per page. Currently There is new config parameter 'Timekeeping' where you can decide to:
+  a. show timers per page and for all cards only informational
+  b. countdown per page
+  c. countdown for all cards
+- added translation for new timers functionality
+- added tooltips for timers
+- create visual enchancement for timers
+- Minor code cleaning
+
+## [1.0.5] - 2025.12.05
 ### Upgrade 
 - Card selection mode "Use all 'Ready' cards within Daily Limit (scheduled pool)" is recoded. Currently use daily limit but choose cards only from selected deck.
 - Minor visual enhancement
