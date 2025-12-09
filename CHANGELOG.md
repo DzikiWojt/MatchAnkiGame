@@ -1,8 +1,22 @@
 Match Anki Game - Changelog
 
+## [1.2.0] - 2025.12.09
+### Added
+- automatically go to next page after last card match on the page:
+  a. wait until last matchin animation finished
+  b. wait until queue of all playing sounds finished
+- sound icon in up-right corner which:
+  a. show whether currently audio playing
+  b. on clicked play audio from last card
+
+### Upgrade
+- On last page, button "Next Page" disappear
+- minor code refactor: self.is_last_page()
+
+### Fix
+- stop all timers and countdowners when finish last card on last page
 
 ## [1.1.0] - 2025.12.08
-
 ### Upgrade
 - Remove old countdown functionality per page. Currently There is new config parameter 'Timekeeping' where you can decide to:
   a. show timers per page and for all cards only informational

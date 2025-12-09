@@ -3,7 +3,7 @@ from .main import launch_matching_config
 from aqt import mw
 from aqt.qt import QAction
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 def on_load():
     action = QAction("Match Anki Game", mw)

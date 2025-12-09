@@ -1,4 +1,4 @@
-from aqt.sound import play
+from aqt.sound import play, av_player
 from typing import List
 import re
 

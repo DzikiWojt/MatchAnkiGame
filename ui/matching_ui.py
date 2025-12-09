@@ -6,8 +6,10 @@ from PyQt6.QtCore import Qt, QTime
 from PyQt6.QtGui import QFont, QColor
 import random
 from .animated_button import AnimatedButton
+from aqt import gui_hooks
 from aqt.utils import showWarning
-
+from aqt.qt import QTimer
+from aqt.sound import av_player
 
 from . import anki_media
 from ..grade_now import grade_now
@@ -43,11 +45,40 @@ class MatchingExam(QWidget):
     def init_ui(self):
         self.layout = QVBoxLayout(self)
 
+        # Header layout: Title & Sound Icon
+        BUTTON_SOUND_SIZE_DEFAULT = "30"
+        BUTTON_SOUND_SIZE_HOVER = "34"
+
+        header_layout = QGridLayout()
 
         title = QLabel(tr("game_title_on_top"))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        self.layout.addWidget(title)
+
+        self.corner_button_sound = QPushButton("🔈")
+        self.corner_button_sound.setStyleSheet(f"""
+            QPushButton {{
+                border: none;
+                background-color: transparent;
+                padding: 0px;
+                margin: 0px;
+                text-align: left;
+                font-size: {BUTTON_SOUND_SIZE_DEFAULT}px;
+            }}
+            QPushButton:hover {{
+                font-size: {BUTTON_SOUND_SIZE_HOVER}px;
+            }}
+        """)
+
+        self.corner_button_sound.setFixedWidth(50)
+        self.corner_button_sound.clicked.connect(self.corner_button_sound_clicked)
+
+        # add title to span on 3 columns (from 0 to 2)
+        # so it's center will be center of whole window
+        # addWidget(widget, row, col, rowSpan, colSpan, alignment)
+        header_layout.addWidget(title, 0, 0, 1, 3, Qt.AlignmentFlag.AlignCenter)
+        header_layout.addWidget(self.corner_button_sound, 0, 2, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+        self.layout.addLayout(header_layout)
 
         # Display page number
         self.page_info = QLabel()
@@ -197,6 +228,10 @@ class MatchingExam(QWidget):
             }
         """)
 
+        self.audio_currently_playing = False
+        gui_hooks.av_player_did_end_playing.append(self._handle_audio_finished)
+        self.last_sound: str | None = None
+
         self.total_pages : int = (len(self.all_data) + self.page_size - 1) // self.page_size
 
         self.layout.addLayout(button_layout)
@@ -222,7 +257,7 @@ class MatchingExam(QWidget):
         for btn in self.meaning_buttons.values():
             btn.force_disable_instant("lightcoral")
         # Disable Timer for all cards, only if this is last page
-        if self.current_page+1 == self.total_pages:
+        if self.is_last_page():
             self.timer_manager_for_all_cards.stop_timer()
 
     def clockdown_finish_for_all_cards(self):
@@ -247,6 +282,9 @@ class MatchingExam(QWidget):
         #total_pages = (len(self.all_data) + self.page_size - 1) // self.page_size
         self.page_info.setText(tr("game_page", page=self.current_page+1, total_pages=self.total_pages))
 
+        self.can_auto_next_page = False
+        self.last_animation_finished = False
+
         # Timers and Countdowners
         match self.timekeeping_mode:
             case TimekeepingMode.COUNTDOWN_FOR_ALL_CARDS:
@@ -259,6 +297,9 @@ class MatchingExam(QWidget):
                 # Timer per page
                 self.timer_manager_per_page.start_timer()
 
+        if self.is_last_page():
+            self.next_button.setVisible(False)
+
         self.clear_grid()
         self.selected_vocab = None
         self.selected_meaning = None
@@ -270,6 +311,10 @@ class MatchingExam(QWidget):
         if not self.page_data:
             QMessageBox.information(self, "No data left", "No more pairs to display.")
             return
+
+        # Get number of current page cards (tiles = cards * 2)
+        self.current_page_cards = len(self.page_data)
+
 
         tiles_number = self.page_size * 2
         tiles = random.sample(range(0, tiles_number), tiles_number)
@@ -415,8 +460,19 @@ class MatchingExam(QWidget):
 
                 self.update_summary()
 
+                self.can_auto_next_page = True
+
                 # play audio file if exist
-                anki_media.play_audio_from_card_field(audio_content)
+                self.last_sound : str = audio_content
+                played_files = anki_media.play_audio_from_card_field(audio_content)
+                if len(played_files) > 0:
+                    self.audio_currently_playing = True
+                    self.corner_button_sound.setText("🔊")
+
+                # count number of cards in current page
+                self.current_page_cards -= 1
+                if self.current_page_cards <= 0:
+                    self.matched_last_card_on_page()
 
             else:
                 self.selection_wrong(self.vocab_buttons[self.selected_vocab], self.meaning_buttons[self.selected_meaning])
@@ -439,7 +495,6 @@ class MatchingExam(QWidget):
 
         self.update_summary()
 
-
     def _update_card_progress(self, card_id):
         if not self.update_stats:
             return
@@ -448,3 +503,53 @@ class MatchingExam(QWidget):
 
     def _handle_update_failure(self, error):
         showWarning(f"Failed to update card status: {error}")
+
+    # execute when last card on the page is matched
+    def matched_last_card_on_page(self):
+        QTimer.singleShot(int(self.animtime*1000), self._handle_last_animation_finished)
+
+        # Timers and Countdowners
+        if self.is_last_page():
+            match self.timekeeping_mode:
+                case TimekeepingMode.COUNTDOWN_FOR_ALL_CARDS:
+                    # Timer per page
+                    self.timer_manager_per_page.stop_timer()
+                    # Countdown for all cards
+                    self.clockdown_manager_for_all_cards.stop_clockdown()
+                case TimekeepingMode.COUNTDOWN_PER_PAGE:
+                    # Countdown per page
+                    self.clockdown_manager_per_page.stop_clockdown()
+                    # Timer for all cards
+                    self.timer_manager_for_all_cards.stop_timer()
+                case TimekeepingMode.TIME_INFORMATIONAL:
+                    # Timer per page
+                    self.timer_manager_per_page.stop_timer()
+                    # Timer for all cards
+                    self.timer_manager_for_all_cards.stop_timer()
+
+
+    # execute when match animation finished on last card on the page
+    def _handle_last_animation_finished(self):
+        self.last_animation_finished = True
+        if self.audio_currently_playing == False and self.can_auto_next_page and not self.is_last_page():
+            self.next_page()
+
+    # execute when single audio file finished
+    def _handle_audio_finished(self, audio_finished_filename: str) -> None:
+        files_remaining = len(av_player._enqueued)
+
+        if files_remaining <= 0:
+            self.audio_currently_playing = False
+            self.corner_button_sound.setText("🔈")
+            if self.last_animation_finished == True and self.can_auto_next_page and not self.is_last_page():
+                self.next_page()
+
+    def corner_button_sound_clicked(self):
+        if self.last_sound:
+            played_files = anki_media.play_audio_from_card_field(self.last_sound)
+            if len(played_files) > 0:
+                self.audio_currently_playing = True
+                self.corner_button_sound.setText("🔊")
+
+    def is_last_page(self):
+        return self.current_page+1 >= self.total_pages
